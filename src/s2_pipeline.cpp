@@ -81,11 +81,15 @@ bool Pipeline::synthesize_to_memory(const PipelineParams & params, void** wav_bu
 }
 
 bool Pipeline::synthesize_raw(const PipelineParams & params, std::vector<float>& audio_out) {
+    std::lock_guard<std::mutex> lock(synthesize_mutex_);
+
     if (!initialized_) {
         std::cerr << "Pipeline not initialized." << std::endl;
         return false;
     }
 
+    model_.clear_kv_cache();
+    
     std::cout << "--- Pipeline Synthesize ---" << std::endl;
     std::cout << "Text: " << params.text << std::endl;
 
@@ -129,6 +133,7 @@ bool Pipeline::synthesize_raw(const PipelineParams & params, std::vector<float>&
     // 4. Generate
     // generate() returns GenerateResult.codes in row-major (num_codebooks, n_frames).
     GenerateResult res = generate(model_, tokenizer_.config(), prompt, params.gen);
+
     if (res.n_frames == 0) {
         std::cerr << "Pipeline error: generation produced no frames." << std::endl;
         return false;
@@ -141,6 +146,8 @@ bool Pipeline::synthesize_raw(const PipelineParams & params, std::vector<float>&
         std::cerr << "Pipeline error: decode failed." << std::endl;
         return false;
     }
+
+    model_.clear_kv_cache();
     
     return true;
 }

@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <string>
+#include <mutex>
 
 namespace s2 {
 
@@ -53,6 +54,7 @@ private:
     Tokenizer   tokenizer_;
     SlowARModel model_;
     AudioCodec  codec_;
+    mutable std::mutex synthesize_mutex_;
     bool initialized_ = false;
 };
 
