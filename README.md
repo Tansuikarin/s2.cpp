@@ -179,8 +179,50 @@ By default, the engine keeps a small `8`-token floor before `EOS`, trims trailin
 | `-top-k N` | `30` | Top-k sampling |
 | `--trim-silence` / `--no-trim-silence` | `trim` enabled | Enable or disable trailing silence trimming on the saved WAV |
 | `--normalize` / `--no-normalize` | `normalize` enabled | Enable or disable peak normalization to `0.95` on the saved WAV |
+| `--server` | — | Start HTTP server instead of CLI synthesis |
+| `-H`, `--host` | `127.0.0.1` | Server bind address |
+| `-P`, `--port` | `3030` | Server port |
 
 Lower `--min-tokens-before-end` values reduce forced tail padding but increase the chance of very short outputs. Setting it to `0` gives the sampler full freedom to end immediately.
+
+---
+
+### HTTP server mode
+
+Start the server:
+
+```bash
+./build/s2 -m s2-pro-q6_K.gguf --server
+# or with custom host/port:
+./build/s2 -m s2-pro-q6_K.gguf --server -H 0.0.0.0 -P 8080
+```
+
+**`POST /generate`** — synthesize audio (multipart/form-data)
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes | Text to synthesize |
+| `reference` | file | no | Reference WAV for voice cloning |
+| `reference_text` | string | no | Transcript of the reference audio |
+| `params` | JSON string | no | Generation params: `max_new_tokens`, `temperature`, `top_p`, `top_k` |
+
+Returns `audio/wav`.
+
+```bash
+# Basic
+curl -X POST http://127.0.0.1:3030/generate \
+  --form "text=Hello world" \
+  --form 'params={"max_new_tokens":512,"temperature":0.58,"top_p":0.88,"top_k":40}' \
+  -o output.wav
+
+# With voice cloning
+curl -X POST http://127.0.0.1:3030/generate \
+  --form "reference=@reference.wav" \
+  --form "reference_text=Transcript of the reference." \
+  --form "text=Text to synthesize in that voice." \
+  --form 'params={"max_new_tokens":512,"temperature":0.58,"top_p":0.88,"top_k":40}' \
+  -o output.wav
+```
 
 ---
 

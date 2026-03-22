@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <string>
+#include <mutex>
 
 namespace s2 {
 
@@ -23,6 +24,7 @@ struct PipelineParams {
     int32_t backend_type = -1; //0 = Vulkan; 1 = Cuda;
     bool trim_silence = true;
     bool normalize_output = true;
+    bool normalize_dynamic = true;
 };
 
 class Pipeline {
@@ -33,10 +35,14 @@ public:
     bool init(const PipelineParams & params);
     bool synthesize(const PipelineParams & params);
 
+    bool synthesize_to_memory(const PipelineParams & params, void** ref_audio_buffer, size_t* ref_audio_size, void** wav_buffer, size_t* wav_size);
+    bool synthesize_raw(const PipelineParams & params, AudioData & ref_audio, std::vector<float> & audio_out);
+
 private:
     Tokenizer   tokenizer_;
     SlowARModel model_;
     AudioCodec  codec_;
+    mutable std::mutex synthesize_mutex_;
     bool initialized_ = false;
 };
 

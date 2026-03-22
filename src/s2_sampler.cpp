@@ -92,7 +92,7 @@ int32_t sample_token(const float * logits, int32_t vocab_size, const SamplerPara
         for (int32_t i = 0; i < p_idx; ++i) probs[i] /= sum_p;
     }
 
-    static std::mt19937 gen(std::random_device{}());
+    thread_local static std::mt19937 gen(std::random_device{}());
     std::discrete_distribution<int32_t> dist(probs.begin(), probs.end());
 
     int32_t sampled_idx = dist(gen);

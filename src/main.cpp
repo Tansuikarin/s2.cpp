@@ -1,4 +1,7 @@
+#include "../third_party/filesystem.hpp"
+namespace fs = ghc::filesystem;
 #include "s2_pipeline.h"
+#include "s2_server.h"
 
 #include <cstdio>
 #include <string>
@@ -41,6 +44,9 @@ void print_uso() {
     safe_print("  --trim-silence              Trim trailing silence in output WAV\n");
     safe_print("  --no-normalize              Keep original output peak level\n");
     safe_print("  --normalize                 Peak-normalize output WAV to 0.95\n");
+    safe_print("  --server                    Start HTTP server\n");
+    safe_print("  -H, --host         <host>   Server host (default: 127.0.0.1)\n");
+    safe_print("  -P, --port         <port>   Server port (default: 3030)\n");
     safe_print("  -h, --help                  Show this help\n");
 }
 
@@ -48,10 +54,8 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
-
     fflush(stdout);
     fflush(stderr);
-
     if (!_isatty(_fileno(stdout))) _setmode(_fileno(stdout), _O_BINARY);
     if (!_isatty(_fileno(stderr))) _setmode(_fileno(stderr), _O_BINARY);
 
@@ -59,14 +63,11 @@ int main(int argc, char** argv) {
     LPWSTR* argv_w = CommandLineToArgvW(GetCommandLineW(), &argc_w);
     static std::vector<std::string> args_utf8;
     static std::vector<char*> new_argv;
-
     if (argv_w != NULL) {
         for (int i = 0; i < argc_w; i++) {
-            int size = WideCharToMultiByte(CP_UTF8, 0, argv_w[i], -1,
-                                           NULL, 0, NULL, NULL);
+            int size = WideCharToMultiByte(CP_UTF8, 0, argv_w[i], -1, NULL, 0, NULL, NULL);
             std::vector<char> arg(size);
-            WideCharToMultiByte(CP_UTF8, 0, argv_w[i], -1,
-                                arg.data(), size, NULL, NULL);
+            WideCharToMultiByte(CP_UTF8, 0, argv_w[i], -1, arg.data(), size, NULL, NULL);
             args_utf8.emplace_back(arg.data());
         }
         LocalFree(argv_w);
@@ -87,6 +88,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    fs::u8arguments u8guard(argc, argv);
+
     s2::PipelineParams params;
     params.model_path = "model.gguf";
     params.tokenizer_path = "tokenizer.json";
@@ -95,34 +98,40 @@ int main(int argc, char** argv) {
     params.gpu_device = -1;
     params.backend_type = -1;
 
+    bool use_server = false;
+    s2::ServerParams serverParams;
+
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if      (arg == "-m"  || arg == "--model")        { if (i+1 < argc) params.model_path       = argv[++i]; }
-        else if (arg == "-t"  || arg == "--tokenizer")    { if (i+1 < argc) params.tokenizer_path   = argv[++i]; }
-        else if (arg == "-text")                          { if (i+1 < argc) params.text              = argv[++i]; }
-        else if (arg == "-pa" || arg == "--prompt-audio") { if (i+1 < argc) params.prompt_audio_path= argv[++i]; }
-        else if (arg == "-pt" || arg == "--prompt-text")  { if (i+1 < argc) params.prompt_text       = argv[++i]; }
-        else if (arg == "-o"  || arg == "--output")       { if (i+1 < argc) params.output_path       = argv[++i]; }
-        else if (arg == "-v"  || arg == "--vulkan")       { if (i+1 < argc) { params.gpu_device = std::stoi(argv[++i]); params.backend_type = 0; } }
-        else if (arg == "-c"  || arg == "--cuda")         { if (i+1 < argc) { params.gpu_device = std::stoi(argv[++i]); params.backend_type = 1; } }
-        else if (arg == "-threads")                       { if (i+1 < argc) params.gen.n_threads     = std::stoi(argv[++i]); }
-        else if (arg == "-max-tokens")                    { if (i+1 < argc) params.gen.max_new_tokens= std::stoi(argv[++i]); }
+        if      (arg == "-m"  || arg == "--model")        { if (i+1 < argc) params.model_path        = argv[++i]; }
+        else if (arg == "-t"  || arg == "--tokenizer")    { if (i+1 < argc) params.tokenizer_path    = argv[++i]; }
+        else if (arg == "-text")                          { if (i+1 < argc) params.text               = argv[++i]; }
+        else if (arg == "-pa" || arg == "--prompt-audio") { if (i+1 < argc) params.prompt_audio_path = argv[++i]; }
+        else if (arg == "-pt" || arg == "--prompt-text")  { if (i+1 < argc) params.prompt_text        = argv[++i]; }
+        else if (arg == "-o"  || arg == "--output")       { if (i+1 < argc) params.output_path        = argv[++i]; }
+        else if (arg == "-v"  || arg == "--vulkan")       { if (i+1 < argc) { try { params.gpu_device = std::stoi(argv[++i]); } catch(...) {} params.backend_type = 0; } }
+        else if (arg == "-c"  || arg == "--cuda")         { if (i+1 < argc) { try { params.gpu_device = std::stoi(argv[++i]); } catch(...) {} params.backend_type = 1; } }
+        else if (arg == "-threads")                       { if (i+1 < argc) { try { params.gen.n_threads      = std::stoi(argv[++i]); } catch(...) {} } }
+        else if (arg == "-max-tokens")                    { if (i+1 < argc) { try { params.gen.max_new_tokens = std::stoi(argv[++i]); } catch(...) {} } }
         else if (arg == "--min-tokens-before-end")        {
             if (i+1 < argc) {
-                params.gen.min_tokens_before_end = std::stoi(argv[++i]);
-                if (params.gen.min_tokens_before_end < 0) {
-                    params.gen.min_tokens_before_end = 0;
-                }
+                try {
+                    params.gen.min_tokens_before_end = std::stoi(argv[++i]);
+                    if (params.gen.min_tokens_before_end < 0) params.gen.min_tokens_before_end = 0;
+                } catch(...) {}
             }
         }
-        else if (arg == "-temp")                          { if (i+1 < argc) params.gen.temperature   = std::stof(argv[++i]); }
-        else if (arg == "-top-p")                         { if (i+1 < argc) params.gen.top_p         = std::stof(argv[++i]); }
-        else if (arg == "-top-k")                         { if (i+1 < argc) params.gen.top_k         = std::stoi(argv[++i]); }
-        else if (arg == "--no-trim-silence")             { params.trim_silence = false; }
-        else if (arg == "--trim-silence")                { params.trim_silence = true; }
-        else if (arg == "--no-normalize")                { params.normalize_output = false; }
-        else if (arg == "--normalize")                   { params.normalize_output = true; }
-        else if (arg == "-h"  || arg == "--help")         { print_uso(); return 0; }
+        else if (arg == "-temp")              { if (i+1 < argc) { try { params.gen.temperature = std::stof(argv[++i]); } catch(...) {} } }
+        else if (arg == "-top-p")             { if (i+1 < argc) { try { params.gen.top_p       = std::stof(argv[++i]); } catch(...) {} } }
+        else if (arg == "-top-k")             { if (i+1 < argc) { try { params.gen.top_k       = std::stoi(argv[++i]); } catch(...) {} } }
+        else if (arg == "--no-trim-silence")  { params.trim_silence     = false; }
+        else if (arg == "--trim-silence")     { params.trim_silence     = true;  }
+        else if (arg == "--no-normalize")     { params.normalize_output = false; }
+        else if (arg == "--normalize")        { params.normalize_output = true;  }
+        else if (arg == "--server")           { use_server = true; }
+        else if (arg == "-H" || arg == "--host") { if (i+1 < argc) serverParams.host = argv[++i]; }
+        else if (arg == "-P" || arg == "--port") { if (i+1 < argc) { try { serverParams.port = std::stoi(argv[++i]); } catch(...) {} } }
+        else if (arg == "-h" || arg == "--help") { print_uso(); return 0; }
     }
 
     if (params.tokenizer_path == "tokenizer.json") {
@@ -149,6 +158,16 @@ int main(int argc, char** argv) {
 
     if (params.gen.max_new_tokens > 800) {
         safe_print_error("Warning: -max-tokens > 800 may cause voice quality degradation. Consider splitting long texts.\n");
+    }
+
+    if (use_server) {
+        serverParams.pipeline = params;
+        s2::Server server;
+        if (!server.serve(serverParams)) {
+            safe_print_error("Server initialization failed.\n");
+            return 1;
+        }
+        return 0;
     }
 
     s2::Pipeline pipeline;
