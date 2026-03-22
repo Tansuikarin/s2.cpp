@@ -1,0 +1,57 @@
+name: Build s2.cpp (Windows + CUDA 13)
+
+on:
+  workflow_dispatch: # 允许在 Actions 页面手动触发
+  push:
+    branches: [ "main", "master" ] # 当推送到主分支时自动触发
+
+jobs:
+  build:
+    name: Windows MSVC CUDA Build
+    runs-on: windows-latest # 使用最新的 Windows Server (自带 MSVC 2022 / CMake)
+
+    steps:
+      - name: 检出代码 (Checkout)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive # 必须：克隆 ggml 子模块
+
+      - name: 安装 CUDA Toolkit 13.1.0
+        uses: Jimver/cuda-toolkit@v0.2.30
+        id: cuda-toolkit
+        with:
+          cuda: '13.1.0'
+          # 可选：如果编译很慢，可以去掉部分不需要的组件以加快安装速度
+          # 但是默认安装最省事，通常需要 2-3 分钟
+
+      - name: 验证 CUDA 安装
+        run: nvcc --version
+
+      - name: 配置 CMake (Configure)
+        # -DS2_CUDA=ON 开启 CUDA
+        # -DS2_VULKAN=OFF 显式关闭 Vulkan
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DS2_CUDA=ON
+          -DS2_VULKAN=OFF
+
+      - name: 编译项目 (Build)
+        # Windows下必须使用 --config Release 指定构建类型
+        # --parallel 不加参数默认使用所有可用 CPU 核心
+        run: cmake --build build --config Release --parallel
+
+      - name: 收集编译产物 (Collect Binaries)
+        shell: pwsh
+        run: |
+          mkdir s2-release
+          # 提取所有的 .exe (s2.exe) 和 .dll (ggml 相关依赖)，放入独立文件夹
+          # 这是因为 Windows 运行时需要 exe 和 ggml 的 dll 在同一目录下
+          Get-ChildItem -Path build -Recurse -Include *.exe,*.dll | Copy-Item -Destination s2-release
+
+      - name: 上传构建产物 (Upload Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: s2-windows-cuda-13.1.0
+          path: s2-release/
+          compression-level: 9 # 最高级压缩
