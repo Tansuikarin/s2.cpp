@@ -29,13 +29,13 @@ GGUF files are available at [rodrigomt/s2-pro-gguf](https://huggingface.co/rodri
 
 | File | Size | Notes |
 |---|---|---|
-| `s2-pro-f16.gguf` | 9.3 GB | Full precision — reference quality |
-| `s2-pro-q8_0.gguf` | 5.3 GB | Near-lossless — recommended for 8+ GB VRAM |
-| `s2-pro-q6_K.gguf` | 4.3 GB | Good quality/size balance — recommended for 6+ GB VRAM |
-| `s2-pro-q5_K_M.gguf` | 3.8 GB | Smaller with still-good quality |
-| `s2-pro-q4_K_M.gguf` | 3.4 GB | Best compact variant so far in quick RU validation |
-| `s2-pro-q3_K.gguf` | 2.9 GB | Usable, but starts stretching short words |
-| `s2-pro-q2_K.gguf` | 2.4 GB | Lowest-size experimental variant |
+| `s2-pro-f16.gguf` | 9.9 GB | Full precision — reference quality |
+| `s2-pro-q8_0.gguf` | 5.6 GB | Near-lossless — recommended for 8+ GB VRAM |
+| `s2-pro-q6_k.gguf` | 4.5 GB | Good quality/size balance — recommended for 6+ GB VRAM |
+| `s2-pro-q5_k_m.gguf` | 4.0 GB | Smaller with still-good quality |
+| `s2-pro-q4_k_m.gguf` | 3.6 GB | Best compact variant so far in quick RU validation |
+| `s2-pro-q3_k.gguf` | 3.0 GB | Usable, but starts stretching short words |
+| `s2-pro-q2_k.gguf` | 2.6 GB | Lowest-size experimental variant |
 
 All variants include both the transformer weights and the audio codec in a single file.
 The quantized variants above were regenerated with the codec tensors (`c.*`) kept in `F16`, so only the AR transformer is quantized.
@@ -109,7 +109,7 @@ The binary is produced at `build/s2`.
 
 ```bash
 ./build/s2 \
-  -m s2-pro-q6_K.gguf \
+  -m s2-pro-q6_k.gguf \
   -t tokenizer.json \
   -text "The quick brown fox jumps over the lazy dog." \
   -o output.wav
@@ -123,7 +123,7 @@ Provide a short reference clip (5–30 seconds, WAV or MP3) and a transcript of 
 
 ```bash
 ./build/s2 \
-  -m s2-pro-q6_K.gguf \
+  -m s2-pro-q6_k.gguf \
   -t tokenizer.json \
   -pa reference.wav \
   -pt "Transcript of what the reference speaker says." \
@@ -137,7 +137,7 @@ By default, the engine keeps a small `8`-token floor before `EOS`, trims trailin
 
 ```bash
 ./build/s2 \
-  -m s2-pro-q6_K.gguf \
+  -m s2-pro-q6_k.gguf \
   -t tokenizer.json \
   -text "Text to synthesize." \
   -v 0 \
@@ -150,7 +150,7 @@ By default, the engine keeps a small `8`-token floor before `EOS`, trims trailin
 
 ```bash
 ./build/s2 \
-  -m s2-pro-q6_K.gguf \
+  -m s2-pro-q6_k.gguf \
   -t tokenizer.json \
   -text "Text to synthesize." \
   -c 0 \
@@ -158,24 +158,6 @@ By default, the engine keeps a small `8`-token floor before `EOS`, trims trailin
 ```
 
 `-c 0` selects the first CUDA device. The transformer runs on GPU; the audio codec always runs on CPU (executes only twice per synthesis).
-
-### Server
-
-```bash
-./build/s2 \
-  -m s2-pro-q6_k.gguf \
-  -t tokenizer.json \
-  --vulkan 0 \
-  --server 1 \
-  -H "127.0.0.1" \
-  -P 3000
-
-curl --location 'http://127.0.0.1:3000/generate' \
-  --form 'reference=928496226.wav' \
-  --form 'reference_text="Well... I was joking, but your conspicuous silence has been noted."' \
-  --form 'text="Hello World?"' \
-  --form 'params="{\"max_new_tokens\":2048,\"temperature\":0.58,\"top_p\":0.88,\"top_k\":40}"'
-```
 
 ### All options
 
@@ -210,9 +192,9 @@ Lower `--min-tokens-before-end` values reduce forced tail padding but increase t
 Start the server:
 
 ```bash
-./build/s2 -m s2-pro-q6_K.gguf --server
+./build/s2 -m s2-pro-q6_k.gguf --server
 # or with custom host/port:
-./build/s2 -m s2-pro-q6_K.gguf --server -H 0.0.0.0 -P 8080
+./build/s2 -m s2-pro-q6_k.gguf --server -H 0.0.0.0 -P 8080
 ```
 
 **`POST /generate`** — synthesize audio (multipart/form-data)
@@ -249,9 +231,9 @@ curl -X POST http://127.0.0.1:3030/generate \
 | VRAM available | Recommended model |
 |---|---|
 | ≥ 10 GB | `q8_0` — near-lossless quality |
-| 6–9 GB | `q6_K` — good quality/size balance |
-| 5–7 GB | `q4_K_M` — best compact variant in current quick validation |
-| < 5 GB | `q3_K` or `q2_K` — experimental, quality drops faster |
+| 6–9 GB | `q6_k` — good quality/size balance |
+| 5–7 GB | `q4_k_m` — best compact variant in current quick validation |
+| < 5 GB | `q3_k` or `q2_k` — experimental, quality drops faster |
 
 VRAM usage at runtime is approximately equal to the file size (transformer weights only; codec runs on CPU).
 
