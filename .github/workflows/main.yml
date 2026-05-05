@@ -14,7 +14,7 @@ jobs:
         with:
           submodules: recursive # 必须：克隆 ggml 子模块
 
-      - name: 安装 CUDA Toolkit 13.1.0
+      - name: 安装 CUDA Toolkit 13
         uses: Jimver/cuda-toolkit@v0.2.35
         id: cuda-toolkit
         with:
@@ -50,6 +50,6 @@ jobs:
       - name: 上传构建产物 (Upload Artifacts)
         uses: actions/upload-artifact@v4
         with:
-          name: s2-windows-cuda-13.1.0
+          name: s2-windows-cuda-13
           path: s2-release/
           compression-level: 9 # 最高级压缩
