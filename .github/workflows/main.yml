@@ -18,7 +18,7 @@ jobs:
         uses: Jimver/cuda-toolkit@v0.2.35
         id: cuda-toolkit
         with:
-          cuda: '13.2.0'
+          cuda: '13.1.0'
           # 可选：如果编译很慢，可以去掉部分不需要的组件以加快安装速度
           # 但是默认安装最省事，通常需要 2-3 分钟
 
