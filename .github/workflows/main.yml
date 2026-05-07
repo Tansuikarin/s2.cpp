@@ -33,6 +33,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DS2_CUDA=ON
           -DS2_VULKAN=OFF
+          -DCMAKE_CXX_FLAGS="/DWIN32_LEAN_AND_MEAN"
 
       - name: 编译项目 (Build)
         # Windows下必须使用 --config Release 指定构建类型
